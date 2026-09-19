@@ -31,16 +31,9 @@ export interface CheckoutConfirmation {
   total: number
 }
 
-interface SearchState {
-  status: 'idle' | 'loading' | 'success' | 'error'
-  criteria: SearchCriteria | null
-  stays: Stay[]
-  error: string
-}
-
 interface BookingContextValue {
-  searchState: SearchState
-  searchStays: (criteria: SearchCriteria) => Promise<void>
+  searchCriteria: SearchCriteria | null
+  setSearchCriteria: (criteria: SearchCriteria) => void
   cartItems: CartItem[]
   addToCart: (item: CartItemInput) => void
   removeFromCart: (id: number) => void
@@ -49,77 +42,35 @@ interface BookingContextValue {
   setConfirmation: (confirmation: CheckoutConfirmation | null) => void
 }
 
-const initialSearchState: SearchState = {
-  status: 'idle',
-  criteria: null,
-  stays: [],
-  error: '',
-}
-
 const BookingContext = createContext<BookingContextValue | null>(null)
 
 export function BookingProvider({ children }: { children: ReactNode }) {
-  const [searchState, setSearchState] = useState(initialSearchState)
+  const [searchCriteria, setSearchCriteria] = useState<SearchCriteria | null>(
+    null,
+  )
   const [cartItems, setCartItems] = useState<CartItem[]>([])
   const [confirmation, setConfirmation] =
     useState<CheckoutConfirmation | null>(null)
   const nextCartItemId = useRef(1)
 
-  async function searchStays(criteria: SearchCriteria) {
-    setSearchState({
-      status: 'loading',
-      criteria,
-      stays: [],
-      error: '',
-    })
-
-    try {
-      const searchParameters = new URLSearchParams({
-        from_date: criteria.fromDate,
-        to_date: criteria.toDate,
-        guests: String(criteria.guests),
-      })
-      const response = await fetch(`/stays?${searchParameters.toString()}`)
-
-      if (!response.ok) {
-        throw new Error('Unable to search for stays.')
-      }
-
-      const stays = await response.json() as Stay[]
-      setSearchState({
-        status: 'success',
-        criteria,
-        stays,
-        error: '',
-      })
-    } catch (error) {
-      setSearchState({
-        status: 'error',
-        criteria,
-        stays: [],
-        error: String(error),
-      })
-    }
-  }
-
   const value = useMemo<BookingContextValue>(() => ({
-    searchState,
-    searchStays,
-    cartItems,
     addToCart: (item) => {
       const id = nextCartItemId.current
       nextCartItemId.current += 1
       setCartItems((items) => [...items, { ...item, id }])
     },
-    removeFromCart: (id) => {
-      setCartItems((items) => items.filter((item) => item.id !== id))
-    },
+    cartItems,
     clearCart: () => {
       setCartItems([])
     },
     confirmation,
+    removeFromCart: (id) => {
+      setCartItems((items) => items.filter((item) => item.id !== id))
+    },
+    searchCriteria,
     setConfirmation,
-  }), [cartItems, confirmation, searchState])
+    setSearchCriteria,
+  }), [cartItems, confirmation, searchCriteria])
 
   return (
     <BookingContext.Provider value={value}>

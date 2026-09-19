@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from 'react'
+import { QueryClientProvider } from '@tanstack/react-query'
 import AppBar from '@mui/material/AppBar'
 import Badge from '@mui/material/Badge'
 import Box from '@mui/material/Box'
@@ -8,6 +9,7 @@ import Toolbar from '@mui/material/Toolbar'
 import Typography from '@mui/material/Typography'
 import { Link, useLocation } from '@tanstack/react-router'
 import logo from '../../assets/logo.png'
+import { createAppQueryClient } from '../../query/createAppQueryClient'
 import { BookingProvider, useBooking } from './BookingContext'
 import { SearchSection } from './SearchSection'
 import { ShoppingCartPane } from './ShoppingCartPane'
@@ -143,9 +145,13 @@ function ApplicationShell({ children }: { children: ReactNode }) {
 }
 
 export function AppLayout({ children }: { children: ReactNode }) {
+  const [queryClient] = useState(createAppQueryClient)
+
   return (
-    <BookingProvider>
-      <ApplicationShell>{children}</ApplicationShell>
-    </BookingProvider>
+    <QueryClientProvider client={queryClient}>
+      <BookingProvider>
+        <ApplicationShell>{children}</ApplicationShell>
+      </BookingProvider>
+    </QueryClientProvider>
   )
 }

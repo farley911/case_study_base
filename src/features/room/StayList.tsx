@@ -13,6 +13,7 @@ import {
   type CartItemInput,
   type SearchCriteria,
 } from '../global/BookingContext'
+import { useStaySearchQuery } from '../global/staySearchQuery'
 
 const currencyFormatter = new Intl.NumberFormat('en-US', {
   currency: 'USD',
@@ -109,9 +110,10 @@ function StayCard({
 }
 
 export function StayList() {
-  const { searchState, addToCart } = useBooking()
+  const { addToCart, searchCriteria } = useBooking()
+  const searchQuery = useStaySearchQuery(searchCriteria)
 
-  if (searchState.status === 'loading') {
+  if (searchQuery.isLoading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
         <CircularProgress aria-label="Loading available stays" />
@@ -119,7 +121,7 @@ export function StayList() {
     )
   }
 
-  if (searchState.status !== 'success' || searchState.criteria === null) {
+  if (searchCriteria === null || !searchQuery.isSuccess) {
     return (
       <Typography color="text.secondary" sx={{ py: 8, textAlign: 'center' }}>
         Please select a date range to view available stays
@@ -127,7 +129,7 @@ export function StayList() {
     )
   }
 
-  const criteria = searchState.criteria
+  const criteria = searchCriteria
 
   return (
     <Box component="section" aria-labelledby="available-stays-heading">
@@ -140,7 +142,7 @@ export function StayList() {
         Select a room
       </Typography>
       <Typography color="text.secondary" sx={{ mb: 3 }}>
-        {searchState.stays.length} results
+        {searchQuery.data.length} results
       </Typography>
       <Box
         role="list"
@@ -154,7 +156,7 @@ export function StayList() {
           },
         }}
       >
-        {searchState.stays.map((stay) => (
+        {searchQuery.data.map((stay) => (
           <StayCard
             key={stay.id}
             stay={stay}

@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import { useMutation } from '@tanstack/react-query'
 import Alert from '@mui/material/Alert'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
@@ -8,8 +9,9 @@ import Paper from '@mui/material/Paper'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 import { Link, useNavigate } from '@tanstack/react-router'
-import type { Booking, CreateBooking } from '../../types/api'
+import type { CreateBooking } from '../../types/api'
 import { useBooking, type CartItem } from '../global/BookingContext'
+import { createBookings } from './createBookings'
 
 const currencyFormatter = new Intl.NumberFormat('en-US', {
   currency: 'USD',
@@ -145,12 +147,16 @@ export function CheckoutPage() {
   const [expiry, setExpiry] = useState('')
   const [cvc, setCvc] = useState('')
   const [error, setError] = useState('')
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  const confirmBookings = useMutation({
+    mutationFn: (bookings: CreateBooking[]) => createBookings(bookings),
+  })
+  const isSubmitting = confirmBookings.isPending
   const total = cartItems.reduce((sum, item) => sum + item.totalPrice, 0)
 
   async function confirmBooking(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setError('')
+    confirmBookings.reset()
 
     if (
       name.trim() === ''
@@ -164,32 +170,18 @@ export function CheckoutPage() {
     }
 
     const items = [...cartItems]
-    setIsSubmitting(true)
 
     try {
-      const bookings: Booking[] = []
-
-      for (const item of items) {
-        const booking: CreateBooking = {
+      const bookings = await confirmBookings.mutateAsync(
+        items.map((item) => ({
           address: address.trim(),
           from_date: item.fromDate,
           guests: item.guests,
           name: name.trim(),
           room_type: item.stay.room_type,
           to_date: item.toDate,
-        }
-        const response = await fetch('/bookings', {
-          body: JSON.stringify(booking),
-          headers: { 'Content-Type': 'application/json' },
-          method: 'POST',
-        })
-
-        if (!response.ok) {
-          throw new Error('booking-request-rejected')
-        }
-
-        bookings.push(await response.json() as Booking)
-      }
+        })),
+      )
 
       setConfirmation({ bookings, items, total })
       clearCart()
@@ -198,8 +190,6 @@ export function CheckoutPage() {
       setError(
         'We could not confirm your booking. Please review your details and try again.',
       )
-    } finally {
-      setIsSubmitting(false)
     }
   }
 

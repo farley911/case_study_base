@@ -1,4 +1,5 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useState, type FormEvent } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import ArrowBackIosNewIcon from '@mui/icons-material/ArrowBackIosNew'
 import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos'
@@ -20,6 +21,13 @@ import { Link } from '@tanstack/react-router'
 import type { Review, Stay } from '../../types/api'
 import { DateRangeCalendar } from '../global/DateRangeCalendar'
 import { useBooking, type SearchCriteria } from '../global/BookingContext'
+import {
+  fetchStay,
+  fetchStayReviews,
+  postStayReview,
+  stayQueryKey,
+  stayReviewsQueryKey,
+} from './stayDetailsQuery'
 
 const currencyFormatter = new Intl.NumberFormat('en-US', {
   currency: 'USD',
@@ -131,9 +139,9 @@ function RoomCarousel({ stay }: { stay: Stay }) {
 }
 
 function BookingPanel({ stay }: { stay: Stay }) {
-  const { addToCart, searchState } = useBooking()
+  const { addToCart, searchCriteria } = useBooking()
   const [criteria, setCriteria] = useState<SearchCriteria>(
-    searchState.criteria ?? { fromDate: '', toDate: '', guests: 2 },
+    searchCriteria ?? { fromDate: '', toDate: '', guests: 2 },
   )
   const [displayedMonth, setDisplayedMonth] = useState(() => {
     const initialDate = criteria.fromDate.length > 0
@@ -281,48 +289,44 @@ function BookingPanel({ stay }: { stay: Stay }) {
 }
 
 function Reviews({
-  initialReviews,
+  reviews,
   roomType,
 }: {
-  initialReviews: Review[]
+  reviews: Review[]
   roomType: string
 }) {
-  const [reviews, setReviews] = useState(initialReviews)
+  const queryClient = useQueryClient()
   const [rating, setRating] = useState(0)
   const [reviewText, setReviewText] = useState('')
-  const [status, setStatus] = useState<'idle' | 'submitting' | 'error'>('idle')
+  const [hasValidationError, setHasValidationError] = useState(false)
+  const submitReviewMutation = useMutation({
+    mutationFn: (body: { rating: number, review: string }) => (
+      postStayReview(roomType, body)
+    ),
+  })
+  const showError = hasValidationError || submitReviewMutation.isError
 
   async function submitReview(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
     if (reviewText.trim().length === 0 || rating === 0) {
-      setStatus('error')
+      setHasValidationError(true)
       return
     }
 
-    setStatus('submitting')
-
     try {
-      const response = await fetch(
-        `/stays/${encodeURIComponent(roomType)}/reviews`,
-        {
-          body: JSON.stringify({ rating, review: reviewText }),
-          headers: { 'Content-Type': 'application/json' },
-          method: 'POST',
-        },
+      const review = await submitReviewMutation.mutateAsync({
+        rating,
+        review: reviewText,
+      })
+      queryClient.setQueryData<Review[]>(
+        stayReviewsQueryKey(roomType),
+        [...reviews, review],
       )
-
-      if (!response.ok) {
-        throw new Error('Unable to submit your review.')
-      }
-
-      const review = await response.json() as Review
-      setReviews((current) => [...current, review])
       setRating(0)
       setReviewText('')
-      setStatus('idle')
     } catch {
-      setStatus('error')
+      setHasValidationError(false)
     }
   }
 
@@ -369,7 +373,8 @@ function Reviews({
               aria-label={`Rate ${score} out of 5`}
               onClick={() => {
                 setRating(score)
-                setStatus('idle')
+                setHasValidationError(false)
+                submitReviewMutation.reset()
               }}
               sx={{ minWidth: 44, p: 0.5 }}
             >
@@ -385,10 +390,11 @@ function Reviews({
           value={reviewText}
           onChange={(event) => {
             setReviewText(event.target.value)
-            setStatus('idle')
+            setHasValidationError(false)
+            submitReviewMutation.reset()
           }}
         />
-        {status === 'error' && (
+        {showError && (
           <Alert severity="error" sx={{ mt: 2 }}>
             Enter a review and select a score from 1 to 5.
           </Alert>
@@ -396,58 +402,49 @@ function Reviews({
         <Button
           type="submit"
           variant="contained"
-          disabled={status === 'submitting'}
+          disabled={submitReviewMutation.isPending}
           sx={{ mt: 2 }}
         >
-          {status === 'submitting' ? 'Submitting…' : 'Submit review'}
+          {submitReviewMutation.isPending ? 'Submitting…' : 'Submit review'}
         </Button>
       </Paper>
     </Box>
   )
 }
 
+function detailsSettledError(
+  stayPending: boolean,
+  reviewsPending: boolean,
+  stayFailed: boolean,
+  reviewsFailed: boolean,
+) {
+  if (stayPending || reviewsPending) {
+    return ''
+  }
+
+  if (stayFailed || reviewsFailed) {
+    return 'Unable to load this room.'
+  }
+
+  return ''
+}
+
 export function StayDetails({ roomType }: { roomType: string }) {
-  const [data, setData] = useState<{
-    stay: Stay
-    reviews: Review[]
-  } | null>(null)
-  const [loadError, setLoadError] = useState('')
+  const stayQuery = useQuery({
+    queryFn: ({ signal }) => fetchStay(roomType, signal),
+    queryKey: stayQueryKey(roomType),
+  })
+  const reviewsQuery = useQuery({
+    queryFn: ({ signal }) => fetchStayReviews(roomType, signal),
+    queryKey: stayReviewsQueryKey(roomType),
+  })
   const [shareStatus, setShareStatus] = useState('')
-
-  useEffect(() => {
-    const abortController = new AbortController()
-
-    async function loadDetails() {
-      try {
-        const encodedRoomType = encodeURIComponent(roomType)
-        const [stayResponse, reviewsResponse] = await Promise.all([
-          fetch(`/stays/${encodedRoomType}`, { signal: abortController.signal }),
-          fetch(`/stays/${encodedRoomType}/reviews`, {
-            signal: abortController.signal,
-          }),
-        ])
-
-        if (!stayResponse.ok || !reviewsResponse.ok) {
-          throw new Error('Unable to load this room.')
-        }
-
-        const stay = await stayResponse.json() as Stay
-        const reviews = await reviewsResponse.json() as Review[]
-        setData({ reviews, stay })
-      } catch (error) {
-        if (!abortController.signal.aborted) {
-          setLoadError(error instanceof Error
-            ? error.message
-            : 'Unable to load this room.')
-        }
-      }
-    }
-
-    void loadDetails()
-    return () => {
-      abortController.abort()
-    }
-  }, [roomType])
+  const loadError = detailsSettledError(
+    stayQuery.isPending,
+    reviewsQuery.isPending,
+    stayQuery.isError,
+    reviewsQuery.isError,
+  )
 
   async function copyShareLink() {
     try {
@@ -473,7 +470,10 @@ export function StayDetails({ roomType }: { roomType: string }) {
     )
   }
 
-  if (data === null) {
+  if (
+    stayQuery.data === undefined
+    || reviewsQuery.data === undefined
+  ) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
         <CircularProgress aria-label="Loading room details" />
@@ -510,10 +510,10 @@ export function StayDetails({ roomType }: { roomType: string }) {
         </Alert>
       )}
       <Typography component="h1" variant="h3" sx={{ mb: 2 }}>
-        {data.stay.name}
+        {stayQuery.data.name}
       </Typography>
-      <RoomCarousel stay={data.stay} />
-      <Typography sx={{ my: 3 }}>{data.stay.description}</Typography>
+      <RoomCarousel stay={stayQuery.data} />
+      <Typography sx={{ my: 3 }}>{stayQuery.data.description}</Typography>
       <Box
         sx={{
           display: 'grid',
@@ -521,8 +521,8 @@ export function StayDetails({ roomType }: { roomType: string }) {
           gridTemplateColumns: { xs: '1fr', md: 'minmax(0, 1fr) 380px' },
         }}
       >
-        <Reviews initialReviews={data.reviews} roomType={roomType} />
-        <BookingPanel stay={data.stay} />
+        <Reviews reviews={reviewsQuery.data} roomType={roomType} />
+        <BookingPanel stay={stayQuery.data} />
       </Box>
     </Box>
   )

@@ -201,14 +201,12 @@ describe('Room details', () => {
 
   test('Existing reviews are displayed and a user can submit a scored review', async () => {
     const user = userEvent.setup()
+    let resolveReview = (_value: string) => undefined
     fetchMock
       .mockResponseOnce(JSON.stringify(stay))
       .mockResponseOnce(JSON.stringify(reviews))
-      .mockResponseOnce(JSON.stringify({
-        id: 2,
-        rating: 4,
-        review: 'A wonderful stay.',
-        room_type: 'king_suite',
+      .mockResponseOnce(() => new Promise<string>((resolve) => {
+        resolveReview = resolve
       }))
     renderBookingApp()
 
@@ -222,7 +220,22 @@ describe('Room details', () => {
     await user.type(screen.getByRole('textbox', { name: /your review/i }), 'A wonderful stay.')
     await user.click(screen.getByRole('button', { name: /submit review/i }))
 
-    expect(await screen.findByText('A wonderful stay.')).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /submitting/i }))
+      .toBeDisabled()
+
+    act(() => {
+      resolveReview(JSON.stringify({
+        id: 2,
+        rating: 4,
+        review: 'A wonderful stay.',
+        room_type: 'king_suite',
+      }))
+    })
+
+    await waitFor(() => {
+      expect(screen.getByRole('textbox', { name: /your review/i })).toHaveValue('')
+    })
+    expect(screen.getByText('A wonderful stay.')).toBeInTheDocument()
     expect(screen.getByLabelText('4 out of 5 stars')).toBeInTheDocument()
     expect(fetchMock).toHaveBeenLastCalledWith(
       '/stays/king_suite/reviews',
@@ -231,7 +244,6 @@ describe('Room details', () => {
         method: 'POST',
       }),
     )
-    expect(screen.getByRole('textbox', { name: /your review/i })).toHaveValue('')
   })
 
   test('An empty review list and failed review submission are handled', async () => {
@@ -270,6 +282,17 @@ describe('Room details', () => {
     await user.click(screen.getByRole('button', { name: /share/i }))
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'Unable to copy the room link.',
+    )
+  })
+
+  test('A reviews request failure uses the same loading error', async () => {
+    fetchMock
+      .mockResponseOnce(JSON.stringify(stay))
+      .mockResponseOnce('', { status: 500 })
+    renderBookingApp()
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Unable to load this room.',
     )
   })
 

@@ -13,6 +13,7 @@ import {
   type SearchCriteria,
 } from './BookingContext'
 import { DateRangeCalendar } from './DateRangeCalendar'
+import { useStaySearchQuery } from './staySearchQuery'
 
 type SearchValues = SearchCriteria
 
@@ -33,22 +34,24 @@ function validateDateRange({ fromDate, toDate }: SearchValues) {
 }
 
 export function SearchSection() {
-  const { searchState, searchStays } = useBooking()
+  const { searchCriteria, setSearchCriteria } = useBooking()
+  const searchQuery = useStaySearchQuery(searchCriteria)
   const [datesExpanded, setDatesExpanded] = useState(
-    searchState.criteria === null,
+    searchCriteria === null,
   )
   const [displayedMonth, setDisplayedMonth] = useState(() => {
     const today = new Date()
     return new Date(today.getFullYear(), today.getMonth(), 1)
   })
   const [values, setValues] = useState<SearchValues>(
-    searchState.criteria ?? {
+    searchCriteria ?? {
       fromDate: '',
       toDate: '',
       guests: 2,
     },
   )
   const [dateError, setDateError] = useState('')
+  const searchError = searchQuery.error?.message ?? ''
 
   function validateAndSearch(searchValues: SearchValues) {
     const validationError = validateDateRange(searchValues)
@@ -56,7 +59,7 @@ export function SearchSection() {
 
     if (validationError.length === 0) {
       setDatesExpanded(false)
-      void searchStays(searchValues)
+      setSearchCriteria(searchValues)
     }
   }
 
@@ -188,13 +191,13 @@ export function SearchSection() {
         </Typography>
       )}
 
-      {searchState.error.length > 0 && (
+      {searchError.length > 0 && (
         <Typography
           role="alert"
           color="error"
           sx={{ mt: 1, textAlign: 'center' }}
         >
-          {searchState.error}
+          {searchError}
         </Typography>
       )}
     </Box>

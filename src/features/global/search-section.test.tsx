@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, test } from '@jest/globals'
+import { QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import fetchMock from 'jest-fetch-mock'
 import type { Stay } from '../../types/api'
+import { createAppQueryClient } from '../../query/createAppQueryClient'
 import { BookingProvider } from './BookingContext'
 import { SearchSection } from './SearchSection'
 
@@ -22,10 +24,14 @@ function mockSuccessfulSearch() {
 }
 
 function renderSearch() {
+  const queryClient = createAppQueryClient()
+
   return render(
-    <BookingProvider>
-      <SearchSection />
-    </BookingProvider>,
+    <QueryClientProvider client={queryClient}>
+      <BookingProvider>
+        <SearchSection />
+      </BookingProvider>
+    </QueryClientProvider>,
   )
 }
 
@@ -95,6 +101,7 @@ describe('Search section', () => {
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
         `/stays?from_date=${fromDate}&to_date=${toDate}&guests=2`,
+        expect.anything(),
       )
     })
     expect(await screen.findByText(`${fromDate} – ${toDate}`)).toBeInTheDocument()
@@ -150,6 +157,7 @@ describe('Search section', () => {
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
         `/stays?from_date=${fromDate}&to_date=${toDate}&guests=4`,
+        expect.anything(),
       )
     })
   })
