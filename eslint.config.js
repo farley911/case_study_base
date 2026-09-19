@@ -15,6 +15,9 @@ export default defineConfig([
     'node_modules/**',
     'src/routeTree.gen.ts',
     '.betterer.ts',
+    'test-results/**',
+    'playwright-report/**',
+    'blob-report/**',
   ]),
 
   // Node/config/tooling files

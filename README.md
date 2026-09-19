@@ -97,6 +97,18 @@ Run tests with coverage:
 npm run test:coverage
 ```
 
+Run Playwright end-to-end tests:
+
+```bash
+npm run test:e2e
+```
+
+Playwright starts the mock API and the production server, so run `npm run build` first (or use `npm run check`). Chromium is required once per machine:
+
+```bash
+npx playwright install chromium
+```
+
 Run Stylelint:
 
 ```bash
@@ -121,7 +133,7 @@ Run the primary quality checks:
 npm run check
 ```
 
-This runs TypeScript checking, linting, Stylelint, tests with coverage, betterer and the production build.
+This runs TypeScript checking, linting, Stylelint, tests with coverage, betterer, the production build, and Playwright end-to-end tests.
 
 ## Architecture Decisions
 

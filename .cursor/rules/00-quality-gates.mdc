@@ -19,6 +19,7 @@ Before declaring a task complete, run all repository quality gates:
 - `npm run test:coverage -- --runInBand`
 - `npm run betterer:ci`
 - `npm run build`
+- `npm run test:e2e`
 
 All applicable quality gates must complete successfully.
 
@@ -232,6 +233,7 @@ This repository has an automated stop hook that validates:
 - `npm run test:coverage -- --runInBand`
 - `npm run betterer:ci`
 - `npm run build`
+- `npm run test:e2e`
 
 When the hook rejects completion:
 
@@ -333,7 +335,8 @@ A task may be considered VERIFIED COMPLETE only when:
 6. All automated tests pass.
 7. Required coverage thresholds pass.
 8. The production build succeeds.
-9. No required validation, tests, lint rules, type checks, coverage requirements, or quality gates were weakened, skipped, disabled, or bypassed to make verification pass.
+9. End-to-end Playwright tests pass.
+10. No required validation, tests, lint rules, type checks, coverage requirements, or quality gates were weakened, skipped, disabled, or bypassed to make verification pass.
 
 Before declaring VERIFIED COMPLETE, run:
 
@@ -341,7 +344,9 @@ Before declaring VERIFIED COMPLETE, run:
     npm run lint
     npm run lint:styles
     npm run test:coverage -- --runInBand
+    npm run betterer:ci
     npm run build
+    npm run test:e2e
 
 Do not claim a task is complete if any required verification command fails.
 
@@ -383,6 +388,7 @@ Explicitly report the result of:
 - `npm run test:coverage -- --runInBand`
 - `npm run betterer:ci`
 - `npm run build`
+- `npm run test:e2e`
 
 Example:
 
@@ -391,4 +397,6 @@ Example:
     - npm run lint — PASS
     - npm run lint:styles — PASS
     - npm run test:coverage -- --runInBand — PASS
+    - npm run betterer:ci — PASS
     - npm run build — PASS
+    - npm run test:e2e — PASS
